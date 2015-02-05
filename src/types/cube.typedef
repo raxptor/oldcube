@@ -1,0 +1,16 @@
+CubeServerInfo @netki
+{
+	string nodename
+	string version
+}
+
+CubeConnect @netki
+{
+	string game_id
+	string token
+}
+
+CubeSync @netki
+{
+	u32 time
+}
