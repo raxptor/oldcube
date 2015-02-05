@@ -55,6 +55,10 @@
     <Compile Include="..\..\..\ext\putki\src\csharp-runtime\PackageManager.cs">
       <Link>PackageManager.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\_gen\cube-netki.cs">
+      <Link>cube-netki.cs</Link>
+    </Compile>
+    <Compile Include="Bitstream.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>
