@@ -1,10 +1,127 @@
 using System;
+using System.Net;
+using System.Net.Sockets;
 
 class ServerMain
 {
 	public static void Main(string[] args)
 	{
-		Console.WriteLine("Cube server test.!");
+		ServerMain sm = new ServerMain();
+		sm.Run(args);
+	}
+
+	public void OnTurboInfo(netki.CubeTurboInfo info)
+	{
+		Console.WriteLine("Cube: turbo version is ["+ info.Version + "]");
+	}
+
+	public void Run(string[] args)
+	{
+		string sockfile = "/tmp/" + System.IO.Path.GetRandomFileName();
+		Console.WriteLine("Waiting for turbo at [" + sockfile + "]");
+	
+		Socket s = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+		s.Bind(new Mono.Unix.UnixEndPoint(sockfile));
+		s.Listen(1);
+
+		System.Diagnostics.Process.Start("/tmp/turbonet", sockfile);
+
+		Socket conn = s.Accept();
+		Console.WriteLine("Cube connected to turbo process.");
+
+		byte[] buf = new byte[256 * 1024];
+		int readpos = 0, parsepos = 0;
+
+		netki.Bitstream.Buffer bufwrap = new netki.Bitstream.Buffer();
+		bufwrap.buf = buf;
+
+		while (true)
+		{
+			int rd = conn.Receive(buf, readpos, buf.Length - readpos, SocketFlags.None);
+			if (rd <= 0)
+			{
+				Console.WriteLine("Socket closed!");
+				break;
+			}
+
+			readpos += rd;
+
+			// Start parsing from the start.
+			bufwrap.bitpos = 0;
+			bufwrap.bytepos = parsepos;
+			bufwrap.error = 0;
+			bufwrap.bufsize = readpos;
+
+			int parsed = 0;
+			while (true)
+			{
+				if (readpos < 2)
+					continue;
+
+				System.UInt32 id = netki.Bitstream.ReadBits(bufwrap, 16);
+				if (bufwrap.error != 0)
+				{
+					Console.WriteLine("read id error");
+					break;
+				}
+
+				Console.WriteLine("Attempting decode of " + id + " with readpos=" + readpos + " parsepos=" + parsepos);
+				bool decoded = false;
+				switch (id)
+				{
+					case netki.CubeTurboInfo.TYPE_ID:
+						{
+							netki.CubeTurboInfo res = new netki.CubeTurboInfo();
+							if (netki.CubeTurboInfo.ReadFromBitstream(bufwrap, res))
+							{
+								OnTurboInfo(res);
+								decoded = true;
+							}
+							break;
+						}
+					default:
+						Console.WriteLine("Turbo: unknown packet id " + id);
+						break;
+				}
+
+				if (decoded)
+				{
+					netki.Bitstream.SyncByte(bufwrap);
+					parsed = bufwrap.bytepos;
+				}
+				else
+				{
+					break;
+				}
+			}
+
+			if (parsed > 0)
+			{
+				Console.WriteLine("Decoded " + parsed + " bytes");
+				parsepos += parsed;
+			}
+
+			if (readpos == buf.Length)
+			{
+				Console.WriteLine("Turbo: read buffer exhausted!");
+				break;
+			}
+
+			if (readpos == parsepos)
+			{
+				Console.WriteLine("Reset parse to 0");
+				readpos = 0;
+				parsepos = 0;
+			}
+			else if (parsepos > 65536)
+			{
+				Console.WriteLine("Peeling " + parsepos + " bytes");
+				for (int i=parsepos;i<readpos;i++)
+					buf[i-parsepos] = buf[i];
+				readpos -= parsepos;
+				parsepos = 0;
+			}
+		}
 	}
 }
 

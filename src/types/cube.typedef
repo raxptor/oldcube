@@ -1,16 +1,24 @@
-CubeServerInfo @netki
+CubeClientConnect @netki
 {
-	string nodename
-	string version
+	string Host
+	u32 ConnectionId
 }
 
-CubeConnect @netki
+// These go both ways
+CubeClientDisconnect @netki
 {
-	string game_id
-	string token
+	u32 ConnectionId
 }
 
-CubeSync @netki
+// These go both ways
+CubeClientData @netki
 {
-	u32 time
+	u32 ConnectionId
+	byte[] Data
+}
+
+// On initialize
+CubeTurboInfo @netki
+{
+	string Version
 }

@@ -31,29 +31,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="Mono.Posix" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="..\..\..\src\server\main.cs">
       <Link>main.cs</Link>
-    </Compile>
-    <Compile Include="..\..\..\_gen\outki_csharp\cube.cs">
-      <Link>cube.cs</Link>
-    </Compile>
-    <Compile Include="..\..\..\_gen\outki_csharp\CubeDataLoader.cs">
-      <Link>CubeDataLoader.cs</Link>
-    </Compile>
-    <Compile Include="..\..\..\ext\putki\src\csharp-runtime\LiveUpdate.cs">
-      <Link>LiveUpdate.cs</Link>
-    </Compile>
-    <Compile Include="..\..\..\ext\putki\src\csharp-runtime\LiveUpdateClient.cs">
-      <Link>LiveUpdateClient.cs</Link>
-    </Compile>
-    <Compile Include="..\..\..\ext\putki\src\csharp-runtime\Package.cs">
-      <Link>Package.cs</Link>
-    </Compile>
-    <Compile Include="..\..\..\ext\putki\src\csharp-runtime\PackageManager.cs">
-      <Link>PackageManager.cs</Link>
     </Compile>
     <Compile Include="..\..\..\_gen\cube-netki.cs">
       <Link>cube-netki.cs</Link>
@@ -61,4 +43,7 @@
     <Compile Include="Bitstream.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Folder Include="Properties\" />
+  </ItemGroup>
 </Project>
