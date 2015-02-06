@@ -10,7 +10,9 @@
 #include <netki/bitstream.h>
 
 uv_loop_t *loop = 0;
-int cubesock = 0;
+uv_pipe_t cube_pipe;
+bool cube_connected = false;
+
 int connection_id_counter = 0;
 
 struct cube_tcp_client
@@ -28,21 +30,43 @@ bool write_packet(T *pkt, netki::bitstream::buffer *buf)
     return T::write_into_bitstream(pkt, buf);
 }
 
-template<typename T, int bufsize>
-void send_packet(T *pkt)
+void tmp_write_complete(uv_write_t *req, int status)
 {
-    char data[bufsize];
+    printf("write completed with status %d\n", status);
+    if (status < 0)
+    {
+        uv_close((uv_handle_t*)req->handle, 0);
+    }
+    
+    free(req);
+}
+
+template<typename T, int bufsize>
+void send_packet(uv_stream_t *handle, T *pkt)
+{
+    struct tmp {
+        uv_write_t req;
+        char data[bufsize];
+    };
+    
+    tmp *req = (tmp*)malloc(sizeof(tmp));
+
     netki::bitstream::buffer buf;
-    netki::bitstream::init_buffer(&buf, data);
+    netki::bitstream::init_buffer(&buf, req->data);
     write_packet(pkt, &buf);
     netki::bitstream::flip_buffer(&buf);
-    write(cubesock, buf.buf, buf.bufsize);
+    
+    printf("writing %d bytes\n", buf.bufsize);
+    uv_buf_t uvb;
+    uvb.base = req->data;
+    uvb.len = buf.bufsize;
+    uv_write(&req->req, handle, &uvb, 1, tmp_write_complete);
 }
 
 template<typename T>
-inline void send_packet(T *pkt)
+inline void send_packet(uv_stream_t *stream, T *pkt)
 {
-    send_packet<T, 1024>(pkt);
+    send_packet<T, 1024>(stream, pkt);
 }
 
 void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf) 
@@ -50,12 +74,46 @@ void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf)
     *buf = uv_buf_init((char*) malloc(suggested_size), suggested_size);
 }
 
+void on_read_pipe(uv_stream_t *client, ssize_t nread, const uv_buf_t* buf) 
+{
+    if (nread > 0)
+    {
+        /*
+        netki::CubeClientData data;
+        data.ConnectionId = cc->connection_id;
+        data.Data = (uint8_t*)buf->base;
+        data.Data_size = nread;
+        send_packet<netki::CubeClientData, 65536>((uv_stream_t*)&cube_pipe, &data);
+        */
+        printf("turbo: Got pipe data, %d bytes\n", (int)nread);
+    }
+    else
+    {
+        printf("turbo: Disconnected from pipe!\n");
+        uv_close((uv_handle_t*)client, 0);
+    }
+    
+    free(buf->base);
+}
+
+
+void on_pipe_connected(uv_connect_t *handle, int status)
+{
+    if (status == 0)
+    {
+        netki::CubeTurboInfo cti;
+        cti.Version = "turbo-0.01";
+        send_packet((uv_stream_t*)&cube_pipe, &cti);
+        cube_connected = true;
+    }
+}
+
 void on_close_tcp(uv_handle_t *handle)
 {
     cube_tcp_client *cc = (cube_tcp_client *)handle;
     netki::CubeClientDisconnect disco;
     disco.ConnectionId = cc->connection_id;
-    send_packet(&disco);
+    send_packet((uv_stream_t*)&cube_pipe, &disco);
     delete cc;
 }
 
@@ -69,7 +127,7 @@ void on_read_tcp(uv_stream_t *client, ssize_t nread, const uv_buf_t* buf)
         data.ConnectionId = cc->connection_id;
         data.Data = (uint8_t*)buf->base;
         data.Data_size = nread;
-        send_packet<netki::CubeClientData, 65536>(&data);
+        send_packet<netki::CubeClientData, 65536>((uv_stream_t*)&cube_pipe, &data);
     }
     else
     {
@@ -97,7 +155,7 @@ void on_new_connection(uv_stream_t *server, int status)
         netki::CubeClientConnect connect;
         connect.Host = "<unknown>";
         connect.ConnectionId = client->connection_id;
-        send_packet(&connect);
+        send_packet((uv_stream_t*)&cube_pipe, &connect);
         uv_read_start(stream, alloc_buffer, on_read_tcp);
     }
     else
@@ -114,34 +172,22 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    printf("connectig on [%s]\n", argv[1]);
-        
-    cubesock = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (cubesock < 0)
-    {
-        printf("turbo: error creating socket\n");
-        return -1;
-    }
-    
-    struct sockaddr_un saddr;
-    saddr.sun_family = AF_UNIX;
-    strcpy(saddr.sun_path, argv[1]);
-    if (connect(cubesock, (struct sockaddr*) &saddr, sizeof(struct sockaddr_un)))
-    {
-        printf("turbo: error connecting\n");
-        return -1;
-    }
-    
-    char data[1024];
-    netki::bitstream::buffer buf;
-    netki::bitstream::init_buffer(&buf, data);
-    
-    // welcome message.
-    netki::CubeTurboInfo cti;
-    cti.Version = "turbo-0.01";
-    send_packet(&cti);
-    
+    printf("connecting on [%s]\n", argv[1]);
+
+    // connect    
     loop = uv_default_loop();
+    uv_connect_t connreq;
+    uv_pipe_init(loop, &cube_pipe, 0);
+    uv_pipe_connect(&connreq, &cube_pipe, argv[1], on_pipe_connected);
+    uv_run(loop, UV_RUN_DEFAULT);
+    
+    if (!cube_connected)
+    { 
+        printf("turbo: failed to make initial connection\n");
+        return 0;
+    }
+    
+    uv_read_start((uv_stream_t*)&cube_pipe, alloc_buffer, on_read_pipe);
     
     const int port = 9860;
     
