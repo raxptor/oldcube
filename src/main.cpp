@@ -6,7 +6,19 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include <netki/types/cube.h>
+#include <netki/bitstream.h>
+
 uv_loop_t *loop = 0;
+
+template<typename T>
+bool write_packet(T *pkt, netki::bitstream::buffer *buf)
+{
+    netki::bitstream::insert_bits<16>(buf, T::type_id());
+    if (buf->error)
+        return false;
+    return T::write_into_bitstream(pkt, buf);
+}
 
 void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf) 
 {
@@ -70,9 +82,27 @@ int main(int argc, char *argv[])
         return -1;
     }
     
-    write(sock, "apa", 3);
-    printf("wrote 3 bytes\n");
+    char data[1024*1024];
+    netki::bitstream::buffer buf;
+    netki::bitstream::init_buffer(&buf, data);
+
+    netki::CubeTurboInfo cti;
+    cti.Version = "A";
     
+    for (int j=0;j<10;j++)
+        write_packet(&cti, &buf);
+
+    netki::bitstream::flip_buffer(&buf);
+    
+    while (buf.bytepos < buf.bufsize)
+    {
+        int next = rand() % (buf.bufsize - buf.bytepos + 1);
+        write(sock, &buf.buf[buf.bytepos], next);
+        buf.bytepos += next;
+    }
+    
+    printf("done!\n");
+   
     close(sock);
     
 /*

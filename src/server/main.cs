@@ -44,6 +44,8 @@ class ServerMain
 				break;
 			}
 
+			Console.WriteLine("got " + rd + " bytes");
+
 			readpos += rd;
 
 			// Start parsing from the start.
@@ -55,8 +57,8 @@ class ServerMain
 			int parsed = 0;
 			while (true)
 			{
-				if (readpos < 2)
-					continue;
+				if (bufwrap.bufsize - bufwrap.bytepos < 2)
+					break;
 
 				System.UInt32 id = netki.Bitstream.ReadBits(bufwrap, 16);
 				if (bufwrap.error != 0)
@@ -65,7 +67,6 @@ class ServerMain
 					break;
 				}
 
-				Console.WriteLine("Attempting decode of " + id + " with readpos=" + readpos + " parsepos=" + parsepos);
 				bool decoded = false;
 				switch (id)
 				{
@@ -97,8 +98,7 @@ class ServerMain
 
 			if (parsed > 0)
 			{
-				Console.WriteLine("Decoded " + parsed + " bytes");
-				parsepos += parsed;
+				parsepos = parsed;
 			}
 
 			if (readpos == buf.Length)
@@ -109,13 +109,11 @@ class ServerMain
 
 			if (readpos == parsepos)
 			{
-				Console.WriteLine("Reset parse to 0");
 				readpos = 0;
 				parsepos = 0;
 			}
 			else if (parsepos > 65536)
 			{
-				Console.WriteLine("Peeling " + parsepos + " bytes");
 				for (int i=parsepos;i<readpos;i++)
 					buf[i-parsepos] = buf[i];
 				readpos -= parsepos;
