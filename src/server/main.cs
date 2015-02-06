@@ -15,6 +15,21 @@ class ServerMain
 		Console.WriteLine("Cube: turbo version is ["+ info.Version + "]");
 	}
 
+	public void OnTurboClientConnect(netki.CubeClientConnect connect)
+	{
+		Console.WriteLine("Cube: client connected with id " + connect.ConnectionId);
+	}
+
+	public void OnTurboClientDisconnect(netki.CubeClientDisconnect connect)
+	{
+		Console.WriteLine("Cube: client disconnected with id " + connect.ConnectionId);
+	}
+
+	public void OnTurboClientData(netki.CubeClientData data)
+	{
+		Console.WriteLine("Cube: client id got data " + data.ConnectionId + " (" + data.Data.Length + ")");
+	}
+
 	public void Run(string[] args)
 	{
 		string sockfile = "/tmp/" + System.IO.Path.GetRandomFileName();
@@ -43,8 +58,6 @@ class ServerMain
 				Console.WriteLine("Socket closed!");
 				break;
 			}
-
-			Console.WriteLine("got " + rd + " bytes");
 
 			readpos += rd;
 
@@ -76,6 +89,36 @@ class ServerMain
 							if (netki.CubeTurboInfo.ReadFromBitstream(bufwrap, res))
 							{
 								OnTurboInfo(res);
+								decoded = true;
+							}
+							break;
+						}
+					case netki.CubeClientConnect.TYPE_ID:
+						{
+							netki.CubeClientConnect res = new netki.CubeClientConnect();
+							if (netki.CubeClientConnect.ReadFromBitstream(bufwrap, res))
+							{
+								OnTurboClientConnect(res);
+								decoded = true;
+							}
+							break;
+						}
+					case netki.CubeClientDisconnect.TYPE_ID:
+						{
+							netki.CubeClientDisconnect res = new netki.CubeClientDisconnect();
+							if (netki.CubeClientDisconnect.ReadFromBitstream(bufwrap, res))
+							{
+								OnTurboClientDisconnect(res);
+								decoded = true;
+							}
+							break;
+						}
+					case netki.CubeClientData.TYPE_ID:
+						{
+							netki.CubeClientData res = new netki.CubeClientData();
+							if (netki.CubeClientData.ReadFromBitstream(bufwrap, res))
+							{
+								OnTurboClientData(res);
 								decoded = true;
 							}
 							break;
